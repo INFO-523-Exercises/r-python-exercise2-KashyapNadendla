@@ -28,7 +28,7 @@ p_load(DBI, # DBI databases
        RMySQL, # Utilizing MySQL drivers
        tidymodels, # Tidyverse format modeling (e.g., lm())
        tidyverse, # Data wrangling, manipulation, visualization
-       qqplotr,lubricate, car, Hmisc, wavelets, sampling)
+       qqplotr,lubricate, car, Hmisc, wavelets, sampling,wordcloud,RColorBrewer)
 ```
 
 ## Loading data
@@ -745,8 +745,132 @@ cluster(ageframe, clustername = "condition", size = 2) # select 2 clusters out o
 ## Inspect Document
 
 ```{r}
+pacman::p_load(tm,
+               SnowballC)#tm uses SnowballC for stemming
+# read corpus
+# Emails.csv,  holding some of Hillary's emails
+data <- read.csv(here::here("data", "Emails.csv"), stringsAsFactors = FALSE)
+
+docs <- Corpus(VectorSource(data$RawText))
+mode(docs)
 
 docs[[20]]
+```
+
+## Preprocessing Text
+
+```{r warning=FALSE, message=FALSE}
+
+docs <- docs |>
+         tm_map(removePunctuation) |>
+         tm_map(content_transformer(tolower)) |> #to lower case
+         tm_map(removeNumbers) |>
+         tm_map(removeWords, stopwords("en")) |> #stopwords, such as a, an.
+         tm_map(stripWhitespace) |>
+         tm_map(stemDocument) #e.g. computer -> comput
+```
+
+```{r}
+
+content(docs[[20]]) #note: stemming reduces a word to its ‘root’ with the aassumption that the ‘root’ represents the semantics of a word, e.g. computer, computing, computation, computers are about the concept of compute, which may be represented by ‘comput’. but stemming is never perfect.
+```
+
+```{r warning=FALSE, message=FALSE}
+
+DTData <- DocumentTermMatrix(docs, control = list(weighting = weightTfIdf))
+```
+
+```{r}
+
+DTData
+```
+
+```{r}
+inspect(DTData[1:2, 1:5])
+```
+
+```{r warning=FALSE, message=FALSE}
+
+TDData <- TermDocumentMatrix(docs, control = list(weighting = weightTfIdf))
+```
+
+```{r}
+
+inspect(TDData[1:2, 1:5])
+```
+
+## Explore the dataset
+
+```{r}
+
+findFreqTerms(TDData, lowfreq = 75, highfreq = 1000)
+```
+
+```{r}
+
+findAssocs(TDData, terms = "bill", corlimit = 0.25)
+```
+
+```{r}
+
+findAssocs(DTData, terms=c("bill"), corlimit = 0.25)
+```
+
+```{r}
+
+findAssocs(DTData, terms=c("schedul"), corlimit = 0.3)
+```
+
+## Create a Word cloud
+
+```{r}
+
+library(wordcloud)
+
+data <- as.matrix(TDData)
+freq <- sort(rowSums(data), decreasing = TRUE)
+base <-data.frame(word = names(freq), freq = freq)
+```
+
+```{r}
+
+png(file = "wordCloud.png", width = 1000, height = 700, bg= "grey30")
+
+wordcloud(base$word, base$freq, col = terrain.colors(length(base$word), alpha = 0.9), 
+random.order = FALSE, rot.per = 0.3, scale = c(1, .1))
+```
+
+```{r}
+
+wordcloud(base$word, base$freq, col = terrain.colors(length(base$word), alpha = 0.9), 
+random.order = FALSE, rot.per = 0.3, scale = c(1, .1))
+```
+
+```{r}
+
+install.packages("onehot")
+library(onehot)
+d <- data.frame(language=c("javascript", "python", "java"), hours=c(10, 3, 5) )
+d$language <- as.factor(d$language) #convert the column to be encoded to Factor
+encoded <- onehot(d)
+new_d <- predict(encoded, d)
+new_d
+```
+
+```{r}
+
+install.packages("qdapTools")
+library(qdapTools)
+d <- data.frame(language=c("javascript, python", "java"), hours = c(3, 5) )
+d
+```
+
+```{r}
+
+dlist <- as.list(d)
+new_d <- data.frame(cbind(dlist, mtabulate(strsplit(as.character(dlist$language), ", ")))) 
+
+new_d
 ```
 
 ## 
